@@ -37,11 +37,11 @@ fn get_input(message: &str) -> String {
     return input.trim().to_string();
 }
 
-fn main() {
+fn debug() {
     println!("Program: ");
     let mut errors: i32 = 0;
     let mut paths: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
-    let instructions = vec![String::new();
+    let instructions = vec![String::new()];
     for line in &instructions {
         println!("{}", line);
     }
