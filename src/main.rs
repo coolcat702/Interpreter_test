@@ -23,11 +23,14 @@ fn main() {
             println!("{}", line);
         }
         println!("");
+        debug(&contents);
     }
     let tape: Vec<bool> = get_input("Input: ")
         .chars()
         .map(|c: char| c == '1')
         .collect();
+    let (res, pos, time) = run(&tape, &contents, do_debug);
+    print_state(res, pos, time);
 }
 
 fn get_input(message: &str) -> String {
@@ -37,65 +40,104 @@ fn get_input(message: &str) -> String {
     return input.trim().to_string();
 }
 
-fn debug() {
+fn print_state(state: Vec<bool>, pos: i32, time: i32) {
+    let mut res: String = ""
+        .to_string();
+    for i in 0..state
+        .len() {
+        res += state[i]
+            .to_string()
+            .as_str();
+    }
+    println!("\nOutput: {}\n", res);
+    println!("Cursor at: {}", pos);
+    println!("Took {} iterations", time);
+}
+    
+fn debug(instructions: &Vec<String>) {
     println!("Program: ");
     let mut errors: i32 = 0;
     let mut paths: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
-    let instructions = vec![String::new()];
-    for line in &instructions {
-        println!("{}", line);
-    }
+    instructions
+        .into_iter()
+        .for_each(|line: &String| {
+            println!("{}", line);
+    });
+    let mut visited_states: std::collections::HashSet<i32> = std::collections::HashSet::new();
+    let mut jumped_states: std::collections::HashSet<i32> = std::collections::HashSet::new();
+    let all_states: std::collections::HashSet<i32> = (1..instructions.len() as i32).collect();
     println!();
-    for (idx, state) in instructions.iter().enumerate() {
+    for (idx, state) in instructions
+        .iter()
+        .enumerate() {
         for path in state.split(" ") {
             paths.insert(path.to_string(), idx as i32);
         }
-        let mut visited_states: std::collections::HashSet<i32> = std::collections::HashSet::new();
-        let mut jumped_states: std::collections::HashSet<i32> = std::collections::HashSet::new();
         for path in paths.keys() {
             for char in path.chars() {
-                if is_valid(&char) {
-                    continue;
+                if !is_valid(&char) {
+                    println!("Invalid character {} at line {}", char, paths[path]);
+                    errors += 1;
                 }
-                println!("Invalid character {} in line {}", char, paths[&path]);
-                errors += 1;
             }
-            let split_path = remove_excess(path)
-                .split(remove_excess(&path))
+            let split_path = remove_excess(&path)
+                .split(&remove_excess(&path))
                 .map(|s: &str| s.to_string())
                 .collect::<Vec<_>>();
-            if remove_excess(&path) != path {
+            if &remove_excess(&path).trim() != &path.trim() {
                 println!(
-                    "Unreachable characters {:?} in line {}. Consider removing them",
-                    split_path, paths[&path]
+                    "Unreachable characters {:?} in line {}",
+                    split_path, paths[path]
                 );
                 errors += 1;
             }
+            visited_states.insert(paths[path] + 1);
+            jumped_states.insert(
+                path.chars()
+                    .filter(|x: &char| x.is_digit(10))
+                    .collect::<String>()
+                    .parse::<i32>()
+                    .unwrap(),
+            );
         }
     }
+    let unused_states: std::collections::HashSet<i32> =
+        all_states.difference(&visited_states).cloned().collect();
+    let invalid_states: std::collections::HashSet<i32> =
+        jumped_states.difference(&all_states).cloned().collect();
+    let states_str: String = all_states
+        .iter()
+        .map(|state: &i32| state.to_string())
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    println!("States: {}", states_str);
+    for unused_state in unused_states {
+        println!("Unused state {}", &unused_state+1);
+    }
+    for invalid_state in invalid_states {
+        println!("Invalid jump to uninitialized state {}", &invalid_state+1);
+    }
+    println!("Debugging finished with {} errors found.\n", errors);
 }
-
-
-
 
 fn run(tape: &Vec<bool>, instructions: &Vec<String>, debug: bool) -> (Vec<bool>, i32, i32) {
     let mut tape: Vec<bool> = tape.clone();
-    let mut pos: usize = 0;
-    let mut idx: usize = 1;
+    let mut pos: i32 = 0;
+    let mut idx: i32 = 1;
     let mut time: i32 = 0;
-    while instructions[idx - 1] != "END" {
-        let instruction: &str = &instructions[idx - 1];
-        if pos < 0{
+    while instructions[idx as usize-1] != "END" {
+        if pos < 0 {
             pos += 1;
-            break
+            break;
         }
-        if pos >= tape.len() {
+        if pos >= tape.len() as i32 {
             pos -= 1;
-            break
+            break;
         }
         time += 1;
-        let val: bool = tape[pos];
-        let state: Vec<String> = instructions[idx-1]
+        let val: bool = tape[pos as usize];
+        let state: Vec<String> = instructions[idx as usize-1]
             .split(" ")
             .map(|s: &str| s
                 .to_string())
@@ -116,7 +158,7 @@ fn run(tape: &Vec<bool>, instructions: &Vec<String>, debug: bool) -> (Vec<bool>,
         }
         for char in to_run.chars() {
             if is_digit(&char) {
-                idx = jump as usize;
+                idx = jump;
                 break
             }
             match char {
@@ -127,19 +169,19 @@ fn run(tape: &Vec<bool>, instructions: &Vec<String>, debug: bool) -> (Vec<bool>,
                     pos -= 1;
                 }
                 '!' => {
-                    tape[pos] = !val;
+                    tape[pos as usize] = !val;
                 }
                 '{' => {
                     pos = 0;
                 }
                 '}' => {
-                    pos = tape.len() - 1;
+                    pos = tape.len() as i32 - 1;
                 }
                 '/' => {
-                    tape[pos] = false
+                    tape[pos as usize] = false
                 }
                 '\\' => {
-                    tape[pos] = true
+                    tape[pos as usize] = true
                 }
                 _ => {
                     continue;
@@ -157,7 +199,7 @@ fn is_digit(c: &char) -> bool {
 }
 
 fn is_valid(c: &char) -> bool {
-    return is_digit(&c) || c == &'<' || c == &'>' || c == &'!' || c == &'{' || c == &'}' || c == &'/' || c == &'\\';
+    return is_digit(c) || c == &'<' || c == &'>' || c == &'!' || c == &'{' || c == &'}' || c == &'/' || c == &'\\';
 }
 
 fn remove_excess(s: &String) -> String {
